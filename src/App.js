@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Auth } from "aws-amplify";
+import { useEffect, useState } from "react";
+import { Auth, Hub } from "aws-amplify";
 
 const initialFormState = {
   username: "",
@@ -11,6 +11,7 @@ const initialFormState = {
 
 function App() {
   const [formState, setFormState] = useState(initialFormState);
+  const [user, setUser] = useState(null);
 
   function onChange(e) {
     e.preventDefault();
@@ -50,6 +51,52 @@ function App() {
     }
   }
 
+  async function signOut() {
+    try {
+      await Auth.signOut();
+      setFormState(() => ({ ...formState, formType: "signIn" }));
+    } catch (err) {
+      console.log("error signing out: ", err);
+    }
+  }
+
+  async function checkUser() {
+    try {
+      const currentUser = await Auth.currentAuthenticatedUser();
+      console.log("currentUser:", currentUser);
+      setUser(currentUser);
+      setFormState(() => ({ ...formState, formType: "signedIn" }));
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  function setAuthListener() {
+    Hub.listen("auth", (data) => {
+      switch (data.payload.event) {
+        case "signIn":
+          console.log("user signed in");
+          break;
+        case "signUp":
+          console.log("user signed up");
+          break;
+        case "signOut":
+          console.log("user signed out");
+          break;
+        case "signIn_failure":
+          console.log("user sign in failed");
+          break;
+        default:
+          break;
+      }
+    });
+  }
+
+  useEffect(() => {
+    checkUser();
+    setAuthListener();
+  }, []);
+
   return (
     <div>
       {formType === "signUp" && (
@@ -73,6 +120,13 @@ function App() {
             placeholder="password"
           />
           <button onClick={signUp}>Sign Up</button>
+          <button
+            onClick={() =>
+              setFormState(() => ({ ...formState, formType: "signIn" }))
+            }
+          >
+            Sign In
+          </button>
         </div>
       )}
       {formType === "confirmSignUp" && (
@@ -101,9 +155,21 @@ function App() {
             placeholder="password"
           />
           <button onClick={signIn}>Sign In</button>
+          <button
+            onClick={() =>
+              setFormState(() => ({ ...formState, formType: "signUp" }))
+            }
+          >
+            Sign Up
+          </button>
         </div>
       )}
-      {formType === "signedIn" && <h1>Welcome user!</h1>}
+      {formType === "signedIn" && (
+        <div>
+          <h1>Welcome</h1>
+          <button onClick={signOut}>Sign Out</button>
+        </div>
+      )}
     </div>
   );
 }
